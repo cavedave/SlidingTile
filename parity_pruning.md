@@ -351,23 +351,50 @@ This is a genuine lower bound on extra blank moves beyond what Manhattan distanc
 already accounts for. It captures the gap between "the ideal where the blank is
 always already in position" and "the reality where the blank must travel."
 
+### Is the Steiner Tree a Lower Bound?
+
+Yes. The blank must physically visit the neighbourhood of each tile to move it.
+The Steiner tree is the minimum-cost connected path structure that does this.
+Since the blank cannot shortcut or teleport:
+
+```
+blank_routing_overhead ≥ Steiner_tree_cost(blank_start, all waypoints)
+```
+
+The Steiner tree cost is a **lower bound on blank routing**, which is in turn a
+lower bound on total overhead, which is a lower bound on the gap between Manhattan
+distance and the optimal solution.
+
 ### Why It Is Hard to Compute Exactly
 
-The Steiner tree problem is NP-hard, even on grid graphs. Computing it exactly for
-all 16 positions and all possible tile configurations is not practical as a
-per-node heuristic in IDA*.
+The Steiner tree problem is NP-hard, even on grid graphs. It cannot be used
+directly as a per-node heuristic in IDA*.
 
-However, there are efficient approximations:
-- **MST lower bound**: compute the minimum spanning tree on the pairwise taxicab
-  distances between all waypoints. An MST is always ≤ optimal Steiner tree, so
-  `MST cost / 2` gives a lower bound (the blank travels each edge at most twice
-  in a tree traversal). Fast to compute, though loose.
-- **Nearest-neighbour tour**: greedily visit the nearest unserviced waypoint from
-  the current blank position. Gives a routing cost that upper-bounds the true
-  optimum, useful for comparing against the lower bound.
-- **Implicit capture via pattern databases**: precomputed 6-8 tile pattern
-  databases implicitly account for blank routing within the tiles in each group,
-  giving exact costs for those subsets without solving Steiner explicitly.
+We need a **lower bound on the Steiner tree** — something cheaper to compute that
+is guaranteed to be ≤ Steiner tree ≤ blank routing overhead.
+
+**Important**: the minimum spanning tree (MST) on the waypoints is an *upper* bound
+on the Steiner tree (MST ≥ Steiner, because the Steiner tree can use intermediate
+"Steiner points" not in the terminal set to reduce total edge length). MST is
+*not* a lower bound.
+
+**Computable lower bounds on the Steiner tree:**
+
+| Bound | How | Tightness |
+|-------|-----|-----------|
+| `max_pairwise_distance / 2` | largest taxicab distance between any two waypoints, halved | very loose |
+| `sum_of_nearest_neighbour_distances / 2` | for each waypoint, distance to nearest other waypoint, summed, halved | moderate |
+| **1-tree relaxation** | fix blank_start; compute MST on all waypoints; add the shortest two edges from blank_start to that MST | tight (this is the Held-Karp lower bound for TSP) |
+
+The 1-tree bound is the classical approach from the TSP literature. It gives a lower
+bound on the optimal blank tour (visiting all waypoints and returning), and since
+blank routing ≥ optimal tour ≥ 1-tree, it is a valid lower bound.
+
+**In practice**: pattern databases implicitly compute blank routing exactly for
+subsets of tiles. A 6-tile pattern database precomputes the exact minimum moves for
+those 6 tiles to reach their goals including all blank repositioning within the
+group. This subsumes the Steiner tree calculation for that subset, but requires
+O(16! / 10!) ≈ 5 million stored values per table.
 
 ### Relationship to the Other Heuristics
 
@@ -383,24 +410,28 @@ Walking distance also captures some routing cost: by tracking row and column
 occupancy, it implicitly accounts for cases where the blank must make multiple
 passes through a boundary to sort tiles on each side.
 
-The Steiner tree bound is the most direct formulation of blank overhead, but the
-other heuristics are practically easier to compute and may already account for
-most of the gap in typical puzzle configurations.
+The Steiner / blank routing perspective is most useful for understanding *why* the
+gap between Manhattan distance and the optimal solution exists — and for designing
+new heuristics that close that gap.
 
 ### Where This Fits in the Hierarchy
 
 ```
-optimal ≥ Manhattan + blank_overhead
-        ≥ Manhattan + MST_lower_bound_on_blank_routing
-        ≥ Manhattan + linear_conflict_extra_moves
-        ≥ walking_distance
-        ≥ inversion_distance
-        ≥ manhattan_distance
+optimal solution length
+  ≥  Manhattan  +  blank_routing_overhead
+  ≥  Manhattan  +  Steiner_tree_cost(waypoints)       ← lower bound on routing
+  ≥  Manhattan  +  1-tree_relaxation(waypoints)       ← lower bound on Steiner (computable)
+  ≥  Manhattan  +  max_pairwise_dist(waypoints) / 2   ← cheapest approximation
+
+  ≥  walking_distance           (captures routing via row/col occupancy)
+  ≥  inversion_distance
+  ≥  manhattan_distance
 ```
 
-The Steiner / blank routing perspective is most useful for understanding *why* the
-gap between Manhattan distance and the optimal solution exists — and for designing
-new heuristics that close that gap.
+These rows are not strictly nested — walking distance and the Manhattan + Steiner
+family are different approaches that may give different values on any specific board.
+Walking distance and inversion distance implicitly capture blank routing cost via
+occupancy structure, without framing it explicitly as a routing problem.
 
 ---
 
