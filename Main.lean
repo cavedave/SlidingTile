@@ -70,21 +70,23 @@ partial def gameLoop (state : PuzzleState) : IO Unit := do
       gameLoop { board := newBoard, moves := state.moves + 1 }
 
 -- ============================================================
--- Scrambled starting board
+-- Random scrambling
 -- ============================================================
--- We build it by applying known moves to solvedBoard, so the type
--- guarantees it is a valid reachable position.
---
--- Moves applied (blank starts at pos 3):
---   slide pos 2  ->  blank moves to pos 2   grid: 0 1 / _ 2
---   slide pos 0  ->  blank moves to pos 0   grid: _ 1 / 0 2
---   slide pos 1  ->  blank moves to pos 1   grid: 1 _ / 0 2
---
--- Solution: slide 0, 2, 3  (try to figure it out!)
-def scrambledBoard : Board :=
-  let b1 := (slideMove solvedBoard ⟨2, by decide⟩).getD solvedBoard
-  let b2 := (slideMove b1 ⟨0, by decide⟩).getD b1
-  (slideMove b2 ⟨1, by decide⟩).getD b2
+
+def validMoves2 (board : Board) : List Position :=
+  (List.finRange 4).filter (canMove board)
+
+-- 50 random moves is more than enough for the 2×2 (only 12 reachable states).
+def randomScramble2 (board : Board) (steps : Nat) : IO Board := do
+  let mut b := board
+  for _ in List.range steps do
+    let moves := validMoves2 b
+    if !moves.isEmpty then
+      let bytes ← IO.getRandomBytes 1
+      if let some pos := moves[bytes[0]!.toNat % moves.length]? then
+        if let some newB := slideMove b pos then
+          b := newB
+  return b
 
 -- ============================================================
 -- Entry point
@@ -99,4 +101,5 @@ def main : IO Unit := do
   IO.println "              2 | _"
   IO.println ""
   IO.println "Type the position number of the tile you want to slide."
-  gameLoop { board := scrambledBoard, moves := 0 }
+  let startBoard ← randomScramble2 solvedBoard 50
+  gameLoop { board := startBoard, moves := 0 }

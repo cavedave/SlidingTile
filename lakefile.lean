@@ -12,3 +12,6 @@ lean_lib Sliding where
 
 lean_exe sliding where
   root := `Main
+
+lean_exe sliding4x4 where
+  root := `Main4x4
