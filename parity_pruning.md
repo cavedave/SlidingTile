@@ -204,6 +204,105 @@ compared to total-parity alone.
 
 ---
 
+## Inversion Distance — Extending Parity to a Lower Bound
+
+Source: Ken'ichiro Takahashi (takaken). English description at:
+https://michael.kim/blog/puzzle
+
+### Inversions
+
+Unravel the board into a single row (row-major, left-to-right top-to-bottom).
+An **inversion** is a pair of tiles (i, j) where tile i appears before tile j
+but i > j. The blank has no number and does not contribute to inversions.
+
+The inversion count and the permutation sign are the same thing:
+```
+inversion_count mod 2  =  0 if sign = +1 (even permutation)
+                        =  1 if sign = −1 (odd permutation)
+```
+
+So our `slideMove_flips_sign` theorem, restated in terms of inversions, is:
+"each legal move changes the inversion count by an odd number."
+
+### Why Horizontal Moves Change Inversions by 0
+
+A horizontal move swaps the blank with a tile one position left or right in
+row-major order. Since the blank has no value, no inversion is created or
+destroyed. The inversion count is unchanged.
+
+Therefore: **inversion_count mod 2 changes only with vertical moves.**
+This is exactly the vertical parity constraint (V ≡ |Δrow_blank| mod 2).
+
+### Why Vertical Moves Change Inversions by ±1 or ±3
+
+A vertical move shifts a tile by 4 positions in row-major order (for a 4×4 board),
+passing over exactly 3 other tiles. Each skipped tile either adds or removes one
+inversion with the moved tile:
+
+- All 3 skipped tiles smaller (or all larger): net ±3 inversions
+- 2 smaller, 1 larger (or vice versa): net ±1 inversions
+
+So a single vertical move fixes at most 3 inversions. This gives a lower bound:
+
+```
+vertical_moves_needed ≥ invcount / 3 + invcount % 3
+```
+
+(Fix 3 per move for the floor(invcount/3) chunk, then 1 per move for the remainder.)
+
+### Horizontal Inversion Distance
+
+Repeat with column-major ordering (top-to-bottom, left-to-right). Now:
+- Vertical moves leave horizontal inversions unchanged
+- Horizontal moves change horizontal inversions by ±1 or ±3
+
+```
+horizontal_moves_needed ≥ h_invcount / 3 + h_invcount % 3
+```
+
+### Combined Lower Bound
+
+Since vertical and horizontal moves are mutually exclusive:
+
+```
+ID = (v_invcount / 3 + v_invcount % 3) + (h_invcount / 3 + h_invcount % 3)
+```
+
+The horizontal inversion count mod 2 = horizontal parity constraint
+(H ≡ |Δcol_blank| mod 2). So Inversion Distance implicitly contains **both**
+independent parity constraints from the row+col section above.
+
+### Connection to the /3 Structure
+
+The group-theoretic argument earlier showed: no mod-3 constraint on the
+*permutation* exists (because transpositions have order 2 in S_n).
+
+Inversion Distance is different: it is a mod-3-like constraint on the
+*inversion count as an integer*, arising from the board geometry (a tile
+passes over 3 others per vertical move). The /3 comes from the grid width, not
+the group structure. On a 3-wide board, vertical moves pass over 2 tiles (±1
+or ±2 inversions); on a 5-wide board, over 4 tiles. The formula generalises to
+`invcount / (width−1) + invcount % (width−1)`.
+
+### Lean Formalisation Sketch
+
+```lean
+lemma horizontal_move_inversion_stable (board : Board) (pos : Position)
+    (h : isHorizontal pos (blankPosition board)) :
+    inversions (slideMove board pos) = inversions board
+
+lemma vertical_move_inversion_change (board : Board) (pos : Position)
+    (h : isVertical pos (blankPosition board)) :
+    let d := (inversions (slideMove board pos) : Int) - inversions board
+    d = 1 ∨ d = -1 ∨ d = 3 ∨ d = -3
+```
+
+`slideMove_flips_sign` follows from `horizontal_move_inversion_stable` alone
+(inversion count parity is stable under horizontal moves, changes under vertical).
+The lower bound theorem is a corollary of `vertical_move_inversion_change`.
+
+---
+
 ## Further Reading
 
 - Korf, R. E. (1985). "Depth-first iterative-deepening: An optimal admissible tree
