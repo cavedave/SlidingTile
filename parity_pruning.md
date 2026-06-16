@@ -303,6 +303,107 @@ The lower bound theorem is a corollary of `vertical_move_inversion_change`.
 
 ---
 
+---
+
+## Blank Routing Overhead and the Steiner Tree Lower Bound
+
+### The Hidden Cost Manhattan Distance Ignores
+
+Manhattan distance counts, for each tile, the minimum moves needed to reach its
+goal — as if the blank is always conveniently adjacent and ready to make the next
+move. In reality the blank is a physical piece that must travel to where it is needed.
+This travel costs moves, and those moves are not counted by Manhattan distance.
+
+Call this the **blank routing overhead**: moves spent repositioning the blank rather
+than directly advancing any tile toward its goal.
+
+### A Simple Example
+
+Suppose three tiles each need one vertical move to reach their goal rows, and the
+blank starts in the opposite corner. Manhattan distance says: 3 moves minimum.
+But the blank must physically travel to tile 1's neighbourhood, make that move,
+then travel to tile 2's neighbourhood, make that move, then travel to tile 3's
+neighbourhood. The inter-tile travel is overhead.
+
+In the best case the blank can route through all three neighbourhoods on a single
+efficient path. In the worst case it must backtrack significantly. The minimum
+blank travel to service all the tiles is the core of the Steiner tree problem.
+
+### The Steiner Tree Formulation
+
+Model the board as a graph:
+- **Nodes**: the 16 positions
+- **Edges**: adjacencies (same as the move graph)
+
+For each tile that needs to move, the blank must visit at least one position
+adjacent to that tile before the tile can be advanced. Call these the **waypoints**:
+the positions the blank must pass through at some point during the solution.
+
+The **Steiner tree problem** asks: what is the minimum-length connected path (or
+tree of paths) in the board graph that starts at the blank's current position and
+passes through all the waypoints?
+
+```
+blank_overhead ≥ cost(minimum Steiner tree connecting blank_start and all waypoints)
+```
+
+This is a genuine lower bound on extra blank moves beyond what Manhattan distance
+already accounts for. It captures the gap between "the ideal where the blank is
+always already in position" and "the reality where the blank must travel."
+
+### Why It Is Hard to Compute Exactly
+
+The Steiner tree problem is NP-hard, even on grid graphs. Computing it exactly for
+all 16 positions and all possible tile configurations is not practical as a
+per-node heuristic in IDA*.
+
+However, there are efficient approximations:
+- **MST lower bound**: compute the minimum spanning tree on the pairwise taxicab
+  distances between all waypoints. An MST is always ≤ optimal Steiner tree, so
+  `MST cost / 2` gives a lower bound (the blank travels each edge at most twice
+  in a tree traversal). Fast to compute, though loose.
+- **Nearest-neighbour tour**: greedily visit the nearest unserviced waypoint from
+  the current blank position. Gives a routing cost that upper-bounds the true
+  optimum, useful for comparing against the lower bound.
+- **Implicit capture via pattern databases**: precomputed 6-8 tile pattern
+  databases implicitly account for blank routing within the tiles in each group,
+  giving exact costs for those subsets without solving Steiner explicitly.
+
+### Relationship to the Other Heuristics
+
+Manhattan distance = minimum tile moves, ignoring blank routing.
+Blank routing overhead = additional moves the blank must make between tile moves.
+Optimal solution ≥ Manhattan distance + blank routing overhead.
+
+Linear conflict already picks up some blank routing: when two tiles conflict in a
+row, the blank must route around them, which costs at least 2 extra moves. The
+Steiner tree bound generalises this to all tiles simultaneously.
+
+Walking distance also captures some routing cost: by tracking row and column
+occupancy, it implicitly accounts for cases where the blank must make multiple
+passes through a boundary to sort tiles on each side.
+
+The Steiner tree bound is the most direct formulation of blank overhead, but the
+other heuristics are practically easier to compute and may already account for
+most of the gap in typical puzzle configurations.
+
+### Where This Fits in the Hierarchy
+
+```
+optimal ≥ Manhattan + blank_overhead
+        ≥ Manhattan + MST_lower_bound_on_blank_routing
+        ≥ Manhattan + linear_conflict_extra_moves
+        ≥ walking_distance
+        ≥ inversion_distance
+        ≥ manhattan_distance
+```
+
+The Steiner / blank routing perspective is most useful for understanding *why* the
+gap between Manhattan distance and the optimal solution exists — and for designing
+new heuristics that close that gap.
+
+---
+
 ## Further Reading
 
 - Korf, R. E. (1985). "Depth-first iterative-deepening: An optimal admissible tree
