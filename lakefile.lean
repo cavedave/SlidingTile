@@ -9,3 +9,6 @@ require mathlib from git
 @[default_target]
 lean_lib Sliding where
   globs := #[.submodules `Sliding]
+
+lean_exe sliding where
+  root := `Main
