@@ -110,6 +110,51 @@ independent of each other.
 
 ---
 
+## Geometric lower bounds for IDA* solvers
+
+See `parity_pruning.md` for a full treatment with references.
+
+The hierarchy of lower bounds (weakest to strongest):
+
+| Bound | Key idea | Formalizable? |
+|-------|----------|---------------|
+| Manhattan distance | individual tile distances | yes, straightforward |
+| + Parity (sign) | each move = transposition, sign flips | ✓ done in `Parity.lean` |
+| + Row parity + col parity | 2 independent mod-2 constraints | follows from `Parity.lean` |
+| + Linear conflict | pairs in same row/col that must pass each other → +2 per pair | yes |
+| Inversion distance | vertical move passes over 3 tiles → fixes ≤ 3 inversions; lb = inv/3 + inv%3 | yes |
+| Walking distance | exact min row-moves + col-moves from occupancy tables | yes (with tables) |
+| Pattern databases | precomputed exact costs for tile subsets | harder, needs lookup |
+
+**Inversion Distance** is the next natural target after parity:
+- `horizontal_move_inversion_stable` — horizontal moves fix 0 inversions
+- `vertical_move_inversion_change` — vertical moves fix 1 or 3 inversions
+- Lower bound theorem follows as a corollary of these two lemmas
+
+### Other geometric constraints (to investigate)
+
+**Symmetry reduction**: the 4×4 grid has 8-fold dihedral symmetry (4 rotations × 2
+reflections). Any board is equivalent to its most "canonical" symmetric form.
+Searching canonical forms only gives up to 8× fewer states — not a lower bound
+improvement but a direct search speedup.
+
+**Cycle costs**: if tiles A, B, C form a rotation cycle (A needs B's spot, B needs
+C's, C needs A's), the minimum moves to resolve it grows with cycle length. Linear
+conflict catches 2-cycles; longer cycles may give a stronger lower bound.
+Potentially formalizable as a generalisation of linear conflict.
+
+**Blank routing overhead**: the blank must travel to the neighbourhood of each tile
+to move it. The minimum extra blank travel not directly advancing any tile toward
+its goal is a lower bound component — related to a Steiner tree on the board graph.
+Hard to compute exactly (NP-hard in general) but approximable.
+
+**Subsquare constraints**: the 4×4 grid contains 9 overlapping 2×2 subsquares.
+The parity of tiles within each subsquare changes with boundary crossings. These
+6 boundary-crossing parities (3 row + 3 col) were discussed in `parity_pruning.md`;
+the subsquare view shows how they decompose spatially.
+
+---
+
 ## Longer-term / exploratory
 
 | Idea | Notes |
